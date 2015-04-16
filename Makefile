@@ -22,6 +22,8 @@ distclean: clean devclean relclean
 rel: all
 	$(REBAR) generate
 
+release: rel
+
 relclean:
 	rm -rf rel/riak_sets
 

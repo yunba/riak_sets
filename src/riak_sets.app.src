@@ -7,7 +7,8 @@
   {applications, [
                   kernel,
                   stdlib,
-                  riak_core
+                  riak_core,
+		  riak_sets_api
                  ]},
   {mod, { riak_sets_app, []}},
   {env, []}

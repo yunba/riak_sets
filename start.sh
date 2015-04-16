@@ -1,3 +1,3 @@
 #!/bin/bash
 
-make generate && ./rel/riak_sets/bin/riak_sets console
+make release && ./rel/riak_sets/bin/riak_sets console
