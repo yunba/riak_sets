@@ -1,9 +1,13 @@
-REBAR = $(shell pwd)/rebar
+DEPS_PLT=$(CURDIR)/plt/dialyzer_plt
+
+DEPS=erts kernel stdlib crypto mnesia deps/webmachine/ebin  deps/lager/ebin  deps/jsx/ebin  deps/mochiweb/ebin deps/sync/ebin  inets deps/hackney/ebin deps/proper/ebin deps/triq/ebin 
+
+REBAR = rebar --force
 .PHONY: deps
 
 all: deps compile
 
-compile:
+compile: deps
 	$(REBAR) compile
 
 deps:
@@ -16,14 +20,43 @@ distclean: clean devclean relclean
 	$(REBAR) delete-deps
 
 release: rel
-rel: all
+rel: relclean all
 	$(REBAR) generate
+
+
 
 relclean:
 	rm -rf rel/riak_sets
 
 xref: all
 	$(REBAR) skip_deps=true xref
+
+eunit: fcompile
+	@if [ -n "$(REBAR)" ] ; then \
+	ERL_LIBS=~/eqcmini $(REBAR) eunit skip_deps=true ; \
+	fi
+fcompile: 
+	$(REBAR) compile skip_deps=true
+
+test: compile eunit dialyzer 
+
+$(DEPS_PLT):
+	@echo Building local plt at $(DEPS_PLT)
+	@echo
+	dialyzer --output_plt $(DEPS_PLT) --build_plt \
+	   --apps $(DEPS)
+plt: $(DEPS_PLT)
+
+dialyzer: fcompile plt
+	dialyzer \
+	--fullpath \
+	--plt $(DEPS_PLT) \
+	-Wrace_conditions -r  ebin apps/*/ebin
+
+
+typer:
+	typer --plt $(DEPS_PLT) -r ./src
+
 
 stage : rel
 	$(foreach dep,$(wildcard deps/*), rm -rf rel/riak_sets/lib/$(shell basename $(dep))-* && ln -sf $(abspath $(dep)) rel/riak_sets/lib;)
