@@ -15,6 +15,7 @@ clean:
 distclean: clean devclean relclean
 	$(REBAR) delete-deps
 
+release: rel
 rel: all
 	$(REBAR) generate
 
