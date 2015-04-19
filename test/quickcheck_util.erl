@@ -27,8 +27,9 @@ guids() ->
      "74293212-b2bb-4542-8d2a-f7a987f3cce5",
      "d5828407-77a4-49fc-bdfa-f8539b0565ac",
      "3332c75d-98b9-4b62-9573-6450a96f83bc"].
+
 set_guid() ->
-    oneof(guids).
+    oneof(guids()).
 
 
 print_cmds([],_) ->

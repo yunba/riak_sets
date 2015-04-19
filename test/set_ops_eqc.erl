@@ -75,7 +75,6 @@ next_state(S,_V, _Cmd) ->
     S.
 
 postcondition(S,{call,_,item_in_set, [Key, Value]},Result) ->
-   
     Result == sets:is_element({Key,Value},S);
 postcondition(_S,_Cmd,_Result) ->
     true.

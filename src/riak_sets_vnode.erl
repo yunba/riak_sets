@@ -40,11 +40,9 @@ handle_command(ping, _Sender, State) ->
     {reply, {pong, State#state.partition}, State};
 
 handle_command({add_to_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
-               
-    lager:info("add_to_set(~p,~p)", [SetKey, Item]), 
+    lager:debug("add_to_set(~p,~p)", [SetKey, Item]), 
     case gb_trees:is_defined(SetKey, Tree) of
-        false ->
-            
+        false ->            
             Set@                         = gb_sets:empty(),
             Set@                         = gb_sets:add(Item, Set@),
             Tree@                        = gb_trees:insert(SetKey, Set@, Tree),
@@ -57,13 +55,12 @@ handle_command({add_to_set, SetKey, Item}, _Sender, State = #state{data = Tree})
     end;
 
 handle_command({item_in_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
-    lager:info("item_in_set(~p,~p)", [SetKey, Item]),
+    lager:debug("item_in_set(~p,~p)", [SetKey, Item]),
     case gb_trees:lookup(SetKey, Tree) of
         none ->
             {reply, false, State};
         {value, SetData } ->
-            
-            lager:info("item_in_set SetData: ~p", [SetData]),
+            lager:debug("item_in_set SetData: ~p", [SetData]),
             {reply, gb_sets:is_member(Item, SetData), State}
     end;
 
@@ -93,9 +90,11 @@ handle_command(Message, _Sender, State) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 handle_handoff_command(_Message, _Sender, State) ->
+    lager:notice("handle_handoff_command/3"),
     {noreply, State}.
 
 handoff_starting(_TargetNode, State) ->
+    lager:notice("handle_starting(~p,~p)", [_TargetNode, State]),
     {true, State}.
 
 handoff_cancelled(State) ->
@@ -104,14 +103,22 @@ handoff_cancelled(State) ->
 handoff_finished(_TargetNode, State) ->
     {ok, State}.
 
-handle_handoff_data(_Data, State) ->
+handle_handoff_data(Data, State =  #state{data = _Tree}) ->
+    {_Meta, _Blob} = binary_to_term(Data),
     {reply, ok, State}.
 
-encode_handoff_item(_ObjectName, _ObjectValue) ->
-    <<>>.
 
-is_empty(State) ->
-    {true, State}.
+encode_handoff_item(_ObjectName, ObjectValue) ->
+    term_to_binary(ObjectValue).
+
+
+is_empty(State =  #state{data = Tree}) ->
+    case gb_trees:size(Tree) of
+	0 ->
+	    {true, State};
+	_Size ->
+	    false		
+    end.
 
 delete(State) ->
     {ok, State}.
