@@ -21,16 +21,16 @@
 %% num_w: The number of successful write replies.
 %%
 %% op: must be a two item tuple with the command and the params
--record(state, {req_id :: pos_integer(),
-                from :: pid(),
-                n :: pos_integer(),
-                w :: pos_integer(),
+-record(state, {req_id		:: pos_integer(),
+                from		:: pid(),
+                n		:: pos_integer(),
+                w		:: pos_integer(),
                 op,
                 % key used to calculate the hash
                 key,
                 accum,
-                preflist :: riak_core_apl:preflist2(),
-                num_w = 0 :: non_neg_integer()}).
+                preflist	:: riak_core_apl:preflist2(),
+                num_w = 0	:: non_neg_integer()}).
 
 %%%===================================================================
 %%% API
@@ -39,9 +39,12 @@
 start_link(ReqID, From, Op, Key, N, W) ->
     gen_fsm:start_link(?MODULE, [ReqID, From, Op, Key, N, W], []).
 
+op(Op) ->
+    op(3,3, Op).
+
 op(N, W, Op) ->
     op(N, W, Op, Op).
-g
+
 op(N, W, Op, Key) ->
     ReqID = reqid(),
     riak_sets_op_fsm_sup:start_write_fsm([ReqID, self(), Op, Key, N, W]),
@@ -58,9 +61,9 @@ init([ReqID, From, Op, Key, N, W]) ->
 
 %% @doc Prepare the write by calculating the _preference list_.
 prepare(timeout, SD0=#state{n=N, key=Key}) ->
-    DocIdx = riak_core_util:chash_key(Key),
-    Preflist = riak_core_apl:get_apl(DocIdx, N, riak_sets),
-    SD = SD0#state{preflist=Preflist},
+    DocIdx	= riak_core_util:chash_key(Key),
+    Preflist	= riak_core_apl:get_apl(DocIdx, N, riak_sets),
+    SD		= SD0#state{preflist=Preflist},
     {next_state, execute, SD, 0}.
 
 %% @doc Execute the write request and then go into waiting state to
@@ -73,9 +76,9 @@ execute(timeout, SD0=#state{req_id=ReqID, op=Op, preflist=Preflist}) ->
 
 %% @doc Wait for W write reqs to respond.
 waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum}) ->
-    NumW = NumW0 + 1,
-    NewAccum = [Resp|Accum],
-    SD = SD0#state{num_w=NumW, accum=NewAccum},
+    NumW	= NumW0 + 1,
+    NewAccum	= [Resp|Accum],
+    SD		= SD0#state{num_w=NumW, accum=NewAccum},
     if
         NumW =:= W ->
             From ! {ReqID, NewAccum},
