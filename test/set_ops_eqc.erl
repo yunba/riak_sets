@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 
 
--module(set_ops_tests).
+-module(set_ops_eqc).
 -behaviour(proper_statem).
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -34,10 +34,9 @@ prop_run_commands() ->
                end,
                begin
                    {_Start,End,Result} = run_commands(?MODULE,Cmds),
-                   lager:notice("Set Contents ~p", [sets:to_list(End)]),
+                   lager:info("Set Contents ~p", [sets:to_list(End)]),
 
-                   sets:fold(fun(Item = {Key, Val},Acc) ->
-                                     io:format("Item ~p~n", [Item]),
+                   sets:fold(fun(_Item = {Key, Val},Acc) ->
                                      riak_sets:remove_from_set(Key, Val),
                                      Acc
                               end, true, End),
@@ -76,7 +75,7 @@ next_state(S,_V, _Cmd) ->
     S.
 
 postcondition(S,{call,_,item_in_set, [Key, Value]},Result) ->
-    io:format("Item in Set ~p Expected: ~p~n", [Result,sets:is_element({Key,Value},S)]),
+   
     Result == sets:is_element({Key,Value},S);
 postcondition(_S,_Cmd,_Result) ->
     true.
