@@ -79,6 +79,7 @@ waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum}) ->
     NumW	= NumW0 + 1,
     NewAccum	= [Resp|Accum],
     SD		= SD0#state{num_w=NumW, accum=NewAccum},
+    lager:info("Waiting ~p ~p", [NumW, W]),
     if
         NumW =:= W ->
             From ! {ReqID, NewAccum},

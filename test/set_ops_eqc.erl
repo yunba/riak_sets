@@ -27,26 +27,30 @@ set_key()   -> value().
 prop_run_commands() ->
     ?FORALL(Cmds,
             non_empty(commands(?MODULE)),
-            ?WHENFAIL(
-               begin
-                   quickcheck_util:print_cmds(Cmds,0),
-                   true
-               end,
-               begin
-                   {_Start,End,Result} = run_commands(?MODULE,Cmds),
-                   lager:info("Set Contents ~p", [sets:to_list(End)]),
-
-                   sets:fold(fun(_Item = {Key, Val},Acc) ->
-                                     riak_sets:remove_from_set(Key, Val),
-                                     Acc
-                              end, true, End),
-                                              
-
+	    begin
+		{_Start,End,Result} = run_commands(?MODULE,Cmds),
+		
+		?WHENFAIL(
+		   begin
+		       io:format("~n~nEnd Value ~p~n",[Result]),
+		       quickcheck_util:print_cmds(Cmds,0),
+		       
+		       true
+		   end,
+		   begin
+		       
+		       sets:fold(fun(_Item = {Key, Val},Acc) ->
+					 riak_sets:remove_from_set(Key, Val),
+					 Acc
+				 end, true, End),
+		       
+		       
                        Result == ok
-                   end)).
+                   end)
+	    end).
 
 
-command(_) ->
+command(_V) ->
     Backend = riak_sets,
     oneof([
 
