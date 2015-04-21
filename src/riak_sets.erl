@@ -52,12 +52,14 @@ size(Set) ->
 
 
 
+op(N, W, Op, Key) ->
+    {ok, ReqId} = riak_sets_op_fsm:op(N,W,Op, Key),
+    wait_for_reqid(ReqId).
+    
 op(Op, Key) ->
     N = 3,
     W = 3,
-    {ok, ReqId} = riak_sets_op_fsm:op(N,W,Op, Key),
-    wait_for_reqid(ReqId).
-
+    op(N, W, Op, Key).
 %% op(N,W,Op) ->
 %%     riak_sets_op_fsm:op(N,W,Op).
 

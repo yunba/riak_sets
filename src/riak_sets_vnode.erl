@@ -39,6 +39,11 @@ handle_command(ping, _Sender, State) ->
     lager:info("PING ~p  ~p", [_Sender, State]),
     {reply, {pong, State#state.partition}, State};
 
+handle_command({ReqId, Cmd }, _Sender, State) when is_integer(ReqId) ->
+    lager:debug("Handle FSM command ~p", [{ReqId, Cmd}]),
+    {Status, Resp, NewState} = handle_command(Cmd, _Sender, State),
+    {Status, {ReqId, Resp}, NewState};
+	
 handle_command({add_to_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
     lager:debug("add_to_set(~p,~p)", [SetKey, Item]), 
     case gb_trees:is_defined(SetKey, Tree) of
@@ -84,7 +89,7 @@ handle_command({remove_from_set, SetKey, Item}, _Sender, State =  #state{data = 
 
 
 handle_command(Message, _Sender, State) ->
-    lager:warning("Unknown Command ~p",[{unhandled_command, Message}]),
+    lager:warning("Unknown Command ~p",[ Message]),
     {reply,false, State}.
 
 

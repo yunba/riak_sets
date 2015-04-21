@@ -51,7 +51,7 @@ dialyzer: fcompile plt
 	dialyzer \
 	--fullpath \
 	--plt $(DEPS_PLT) \
-	-Wrace_conditions -r  ebin apps/*/ebin
+	-Wrace_conditions -r  ebin
 
 
 typer:

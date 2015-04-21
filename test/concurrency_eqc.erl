@@ -8,7 +8,7 @@
 %%%-------------------------------------------------------------------
 
 
--module(set_ops_eqc).
+-module(concurrency_eqc).
 -behaviour(proper_statem).
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
@@ -16,19 +16,18 @@
 
 
 
+
 value() -> quickcheck_util:uuid().
-
-
     
 set_value() -> value().
 set_key()   -> value().
 
-
-prop_run_commands() ->
+prop_conc() ->
     ?FORALL(Cmds,
             non_empty(commands(?MODULE)),
 	    begin
-		{_Start,End,Result} = run_commands(?MODULE,Cmds),
+		clean(),
+		{_Start,{End,_}, Result} = run_commands(?MODULE,Cmds),
 		
 		?WHENFAIL(
 		   begin
@@ -38,7 +37,7 @@ prop_run_commands() ->
 		       true
 		   end,
 		   begin
-		       
+		       %?assertEqual(ok,Result),       
 		       sets:fold(fun(_Item = {Key, Val},Acc) ->
 					 riak_sets:remove_from_set(Key, Val),
 					 Acc
@@ -53,35 +52,46 @@ prop_run_commands() ->
 command(_V) ->
     Backend = riak_sets,
     oneof([
-
            {call, Backend, add_to_set,      [ set_key(), set_value()]},
            {call, Backend, remove_from_set, [ set_key(), set_value()]},
-           {call, Backend, item_in_set,     [ set_key(), set_value()]}
-          ]).
-        
+           {call, Backend, item_in_set,     [ set_key(), set_value()]},
+	   {call, ?MODULE, partial_write,   [ set_key(), set_value(), integer(1,2)]}
+	  ]).
+ 
+
+partial_write(Set, Item, W) ->    
+    lager:debug("partial_write(~p,~p)", [Set, Item]),
+    riak_sets:op(3, W, {add_to_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
+
 
 
 initial_state() ->
     clean(),
-    sets:new().
+    {sets:new(), sets:new()}.
 
 
 precondition(_,_) ->
     true.
 
 
-
-next_state(S,_V, {call, _, add_to_set, [ Key, Value]}) ->
-    sets:add_element({Key, Value}, S);
-next_state(S,_V, _Cmd = {call, _, remove_from_set, [ Key, Value]}) ->
-    sets:del_element({Key, Value}, S);
+next_state({S1,S2}, _V, {call, _, add_to_set, [ Key, Value]}) ->
+    {sets:add_element({Key, Value}, S1), S2};
+next_state({S1,S2}, _V, {call, _, partial_write, [ Key, Value,_]}) ->
+    {S1,sets:add_element({Key, Value}, S2)};
+next_state({S1,S2}, _V, _Cmd = {call, _, remove_from_set, [ Key, Value]}) ->
+    {sets:del_element({Key, Value}, S1),S2};
 next_state(S,_V, _Cmd) ->
     S.
 
-postcondition(S,{call,_,item_in_set, [Key, Value]},{ok,[Result,Result,Result]}) ->
+
+postcondition({S,_}, Cmd = {call,_,item_in_set, [Key, Value]}, _R = {ok,R = [Result,Result,Result]}) ->
+    lager:warning("Result ~p -> ~p", [Cmd, R]),
     Result == sets:is_element({Key,Value},S);
-postcondition(_S, {call,_,item_in_set, [_Key, _Value]},{ok,[_Result1,_Result2,_Result3]}) ->
+postcondition(_S, Cmd = {call,_,item_in_set, [_Key, _Value]},  {ok, R = [_Result1,_Result2,_Result3]}) ->
+    lager:warning("Result ~p -> ~p", [Cmd, R]),
     false;
+postcondition({_S1,_S2}, _Cmd = {call,_,partial_write, [_Key, _Value,_]}, _R ) ->
+    true;
 postcondition(_S,_Cmd,_Result) ->
     true.
 
