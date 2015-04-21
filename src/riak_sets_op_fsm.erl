@@ -39,8 +39,8 @@
 start_link(ReqID, From, Op, Key, N, W) ->
     gen_fsm:start_link(?MODULE, [ReqID, From, Op, Key, N, W], []).
 
-op(Op) ->
-    op(3,3, Op).
+%% op(Op) ->
+%%     op(3,3, Op).
 
 op(N, W, Op) ->
     op(N, W, Op, Op).
@@ -59,6 +59,7 @@ init([ReqID, From, Op, Key, N, W]) ->
     SD = #state{req_id=ReqID, from=From, n=N, w=W, op=Op, key=Key, accum=[]},
     {ok, prepare, SD, 0}.
 
+
 %% @doc Prepare the write by calculating the _preference list_.
 prepare(timeout, SD0=#state{n=N, key=Key}) ->
     DocIdx	= riak_core_util:chash_key(Key),
@@ -66,10 +67,11 @@ prepare(timeout, SD0=#state{n=N, key=Key}) ->
     SD		= SD0#state{preflist=Preflist},
     {next_state, execute, SD, 0}.
 
+
 %% @doc Execute the write request and then go into waiting state to
 %% verify it has meets consistency requirements.
 execute(timeout, SD0=#state{req_id=ReqID, op=Op, preflist=Preflist}) ->
-    Command = {ReqID, Op},
+    Command     = {ReqID, Op},
     riak_core_vnode_master:command(Preflist, Command, {fsm, undefined, self()},
                                    riak_sets_vnode_master),
     {next_state, waiting, SD0}.
@@ -79,6 +81,7 @@ waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum}) ->
     NumW	= NumW0 + 1,
     NewAccum	= [Resp|Accum],
     SD		= SD0#state{num_w=NumW, accum=NewAccum},
+    lager:debug("Waiting ~p ~p", [NumW, W]),
     if
         NumW =:= W ->
             From ! {ReqID, NewAccum},

@@ -1,6 +1,8 @@
 -module(user_default).
 -compile(export_all).
 
+
+
 setup() ->
     code:add_pathsa(["../../ebin"]),
     code:add_pathsz(["../../deps/sync/ebin", "../../deps/proper/ebin", "../../deps/hackney/ebin", "../../.eunit", "../../deps/uuid/ebin", "../../deps/seqbind/ebin"]),
@@ -27,3 +29,15 @@ handoff() ->
 clean() ->
     set_ops_eqc:clean().
 
+
+con() ->
+
+    clean(),
+    proper:quickcheck(concurrency_eqc:prop_conc()),
+    true.
+    
+con(N) ->
+    
+    clean(),
+    proper:quickcheck(concurrency_eqc:prop_conc(), [N]),
+    true.

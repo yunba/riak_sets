@@ -27,41 +27,48 @@ ping() ->
 %%% API
 %%%===================================================================
 item_in_set(Set, Item) ->
-
-    DocIdx               = riak_core_util:chash_key({<<"set">>,term_to_binary(Set)}),
-    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
-    [{IndexNode, _Type}] = PrefList,
-    
-    riak_core_vnode_master:sync_spawn_command(IndexNode, {item_in_set, Set, Item} , riak_sets_vnode_master).
-
+    lager:debug("item_in_set(~p,~p)", [Set, Item]),
+    op({item_in_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
     
 
 add_to_set( Set, Item) ->
-%    lager:info("add_to_set(~p,~p)", [Set, Item]),
-    DocIdx               = riak_core_util:chash_key({<<"set">>,term_to_binary(Set)}),
-    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
-    [{IndexNode, _Type}] = PrefList,
+    lager:debug("add_to_set(~p,~p)", [Set, Item]),
+    op({add_to_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
 
-    riak_core_vnode_master:sync_spawn_command(IndexNode, {add_to_set, Set, Item} , riak_sets_vnode_master).
 
 
 remove_from_set(Set,Item) ->
-    DocIdx               = riak_core_util:chash_key({<<"set">>,term_to_binary(Set)}),
-    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
-    [{IndexNode, _Type}] = PrefList,
-    riak_core_vnode_master:sync_spawn_command(IndexNode, {remove_from_set, Set, Item} , riak_sets_vnode_master).
+    lager:debug("remove_from_set(~p,~p)", [Set, Item]),
+    op({remove_from_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
 
 remove_from_set(Set) ->
-    DocIdx               = riak_core_util:chash_key({<<"set">>,term_to_binary(Set)}),
-    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
-    [{IndexNode, _Type}] = PrefList,
-    riak_core_vnode_master:sync_spawn_command(IndexNode, {remove_from_set, Set} , riak_sets_vnode_master).
+    lager:debug("remove_from_set(~p)", [Set]),
+    op({remove_from_set, Set}, {<<"set">>,term_to_binary(Set)}).
 
     
 size(Set) ->
-    DocIdx               = riak_core_util:chash_key({Set}),
-    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
+    lager:debug("remove_from_set(~p)", [Set]),
+    op({size, Set}, {<<"set">>,term_to_binary(Set)}).
 
-    [{IndexNode, _Type}] = PrefList,
-    riak_core_vnode_master:sync_spawn_command(IndexNode, {size, Set} , riak_sets_vnode_master).
 
+
+op(N, W, Op, Key) ->
+    {ok, ReqId} = riak_sets_op_fsm:op(N,W,Op, Key),
+    wait_for_reqid(ReqId).
+    
+op(Op, Key) ->
+    N = 3,
+    W = 3,
+    op(N, W, Op, Key).
+%% op(N,W,Op) ->
+%%     riak_sets_op_fsm:op(N,W,Op).
+
+
+    
+wait_for_reqid(Id) ->
+    wait_for_reqid(Id, 5000).
+
+wait_for_reqid(Id, Timeout) ->
+    receive {Id, Value} -> {ok, Value}
+    after Timeout -> {error, timeout}
+    end.
