@@ -2,18 +2,28 @@
 -compile(export_all).
 
 setup() ->
+    code:add_pathsa(["../../ebin"]),
+    code:add_pathsz(["../../deps/sync/ebin", "../../deps/proper/ebin", "../../deps/hackney/ebin", "../../.eunit", "../../deps/uuid/ebin", "../../deps/seqbind/ebin"]),
     sync:go(),
-    code:add_pathsz(["../../deps/proper/ebin","../../.eunit", "../../deps/seqbind/ebin", "../../deps/uuid/ebin"]),
-    lager:start(),
-    lager:set_loglevel(lager_console_backend, warning),
+    lager:set_loglevel(lager_console_backend, notice),
     ok.
 
-ping() ->
-    riak_sets:ping().
+
+ops(N) ->
+    proper:quickcheck(set_ops_eqc:prop_run_commands(), [N]),
+    true.
 
 ops() ->
-        
-    proper:module(set_ops_tests).
+    clean(),
+    proper:quickcheck(set_ops_eqc:prop_run_commands()),
+    true.
+    
 
-web() ->
-   proper:module(web_tests). 
+handoff() ->
+    clean(),
+    proper:quickcheck(riak_sets_handoff_eqc:prop_handoff()),
+    true.
+
+clean() ->
+    set_ops_eqc:clean().
+
