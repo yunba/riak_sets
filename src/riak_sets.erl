@@ -28,8 +28,15 @@ ping() ->
 %%%===================================================================
 item_in_set(Set, Item) ->
     lager:debug("item_in_set(~p,~p)", [Set, Item]),
-    op({item_in_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
-    
+    case op({item_in_set, Set, Item}, {<<"set">>,term_to_binary(Set)}) of
+        {ok, [Result, Result, Result]} ->
+            Result;
+        {ok, _Results} ->
+            lager:info("Mismatched Data for {~p,~p} setting to present", [Set, Item]),
+            add_to_set(Set, Item),
+            true
+    end.
+                
 
 add_to_set( Set, Item) ->
     lager:debug("add_to_set(~p,~p)", [Set, Item]),
@@ -48,8 +55,12 @@ remove_from_set(Set) ->
     
 size(Set) ->
     lager:debug("remove_from_set(~p)", [Set]),
-    op({size, Set}, {<<"set">>,term_to_binary(Set)}).
-
+    case op(1,1,{size, Set}, {<<"set">>,term_to_binary(Set)}) of
+        {ok, [S]} ->
+            S;
+        X ->
+            {error,X}
+    end.
 
 
 op(N, W, Op, Key) ->

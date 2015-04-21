@@ -167,7 +167,7 @@ prop_run_web() ->
 			  
 	    end).
 
-run_test_() ->
+run_te3st_() ->
     application:ensure_all_started(restc),
     hackney:start(),
     {timeout, 3600,

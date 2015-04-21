@@ -42,7 +42,7 @@ prop_save_and_exists() ->
             end).
 
 
-run_test_() ->
+run_te3st_() ->
     application:ensure_all_started(lager),
     code:add_pathz("../apps/setref/ebin"),
     {timeout, 3600,

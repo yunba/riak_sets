@@ -77,6 +77,7 @@ execute(timeout, SD0=#state{req_id=ReqID, op=Op, preflist=Preflist}) ->
     {next_state, waiting, SD0}.
 
 %% @doc Wait for W write reqs to respond.
+
 waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum}) ->
     NumW	= NumW0 + 1,
     NewAccum	= [Resp|Accum],

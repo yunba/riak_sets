@@ -16,9 +16,22 @@
 
 
 
-value() -> quickcheck_util:uuid().
+value() -> weighted_union([
+                           {50,quickcheck_util:uuid()},
+                           {60,quickcheck_util:set_guid()},
+                           {1, quickcheck_util:evil_real()}
+                          ]).
 
 
+command(_V) ->
+    Backend = riak_sets,
+    oneof([
+	   {call, ?MODULE, partial_write,   [ quickcheck_util:set_guid(), quickcheck_util:set_guid(), 2]},
+           {call, Backend, add_to_set,      [ set_key(), set_value()]},
+           {call, Backend, remove_from_set, [ set_key(), set_value()]},
+           {call, Backend, item_in_set,     [ set_key(), set_value()]},
+           {call, Backend, size,            [ set_key()]}
+          ]).
     
 set_value() -> value().
 set_key()   -> value().
@@ -50,15 +63,6 @@ prop_run_commands() ->
 	    end).
 
 
-command(_V) ->
-    Backend = riak_sets,
-    oneof([
-
-           {call, Backend, add_to_set,      [ set_key(), set_value()]},
-           {call, Backend, remove_from_set, [ set_key(), set_value()]},
-           {call, Backend, item_in_set,     [ set_key(), set_value()]}
-          ]).
-        
 
 
 initial_state() ->
@@ -70,18 +74,31 @@ precondition(_,_) ->
     true.
 next_state(S,_V, {call, _, add_to_set, [ Key, Value]}) ->
     sets:add_element({Key, Value}, S);
+next_state(S,_V, {call, _, partial_write, [ Key, Value,_]}) ->
+    sets:add_element({Key, Value}, S);
 next_state(S,_V, _Cmd = {call, _, remove_from_set, [ Key, Value]}) ->
     sets:del_element({Key, Value}, S);
 next_state(S,_V, _Cmd) ->
     S.
 
-postcondition(S,{call,_,item_in_set, [Key, Value]},{ok,[Result,Result,Result]}) ->
+postcondition(S,{call,_,item_in_set, [Key, Value]},Result) ->
     Result == sets:is_element({Key,Value},S);
-postcondition(_S, {call,_,item_in_set, [_Key, _Value]},{ok,[_Result1,_Result2,_Result3]}) ->
-    false;
+postcondition(S, {call, _, size, [Key]}, Result) ->
+    MCount = sets:fold(fun({K,_},Acc) when K == Key ->
+                               Acc + 1;
+                          (_, Acc) ->Acc
+                       end, 0, S),
+
+    MCount == Result;
+        
+    
 postcondition(_S,_Cmd,_Result) ->
     true.
 
+
+partial_write(Set, Item, W) ->    
+    lager:debug("partial_write(~p,~p)", [Set, Item]),
+    riak_sets:op(2, W, {add_to_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
 
 
 clean() ->

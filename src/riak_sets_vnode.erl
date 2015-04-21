@@ -40,7 +40,7 @@ handle_command(ping, _Sender, State) ->
     {reply, {pong, State#state.partition}, State};
 
 handle_command({ReqId, Cmd }, _Sender, State) when is_integer(ReqId) ->
-    lager:debug("Handle FSM command ~p", [{ReqId, Cmd}]),
+    lager:info("Handle FSM command ~p", [{ReqId, Cmd}]),
     {Status, Resp, NewState} = handle_command(Cmd, _Sender, State),
     {Status, {ReqId, Resp}, NewState};
 	
@@ -85,6 +85,13 @@ handle_command({remove_from_set, SetKey, Item}, _Sender, State =  #state{data = 
             {reply, ok, State#state{data = NewTree}};
         none ->
             {reply, ok, State}
+    end;
+handle_command({size, SetKey},_Sender, State =  #state{data = Tree}) ->
+    case gb_trees:lookup(SetKey, Tree) of
+        {value, Set} ->
+            {reply, gb_sets:size(Set), State};
+        none ->
+            {reply, 0, State}
     end;
 
 
