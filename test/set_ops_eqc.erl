@@ -14,8 +14,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
-
-
 value() -> weighted_union([
                            {50,quickcheck_util:uuid()},
                            {60,quickcheck_util:set_guid()},
@@ -24,13 +22,12 @@ value() -> weighted_union([
 
 
 command(_V) ->
-    Backend = riak_sets,
     oneof([
-	   {call, ?MODULE, partial_write,   [ quickcheck_util:set_guid(), quickcheck_util:set_guid(), 2]},
-           {call, Backend, add_to_set,      [ set_key(), set_value()]},
-           {call, Backend, remove_from_set, [ set_key(), set_value()]},
-           {call, Backend, item_in_set,     [ set_key(), set_value()]},
-           {call, Backend, size,            [ set_key()]}
+	   {call, ?MODULE,   partial_write,   [ quickcheck_util:set_guid(), quickcheck_util:set_guid(), integer(1,3)]},
+           {call, riak_sets, add_to_set,      [ set_key(), set_value()]},
+           {call, riak_sets, remove_from_set, [ set_key(), set_value()]},
+           {call, riak_sets, item_in_set,     [ set_key(), set_value()]},
+           {call, riak_sets, size,            [ set_key()]}
           ]).
     
 set_value() -> value().
@@ -42,22 +39,17 @@ prop_run_commands() ->
             non_empty(commands(?MODULE)),
 	    begin
 		{_Start,End,Result} = run_commands(?MODULE,Cmds),
-		
 		?WHENFAIL(
 		   begin
 		       io:format("~n~nEnd Value ~p~n",[Result]),
 		       quickcheck_util:print_cmds(Cmds,0),
-		       
 		       true
 		   end,
 		   begin
-		       
 		       sets:fold(fun(_Item = {Key, Val},Acc) ->
 					 riak_sets:remove_from_set(Key, Val),
 					 Acc
 				 end, true, End),
-		       
-		       
                        Result == ok
                    end)
 	    end).
@@ -66,7 +58,6 @@ prop_run_commands() ->
 
 
 initial_state() ->
-    clean(),
     sets:new().
 
 

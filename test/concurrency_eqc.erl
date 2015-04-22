@@ -37,25 +37,23 @@ prop_conc() ->
 		       true
 		   end,
 		   begin
-		       %?assertEqual(ok,Result),       
+
 		       sets:fold(fun(_Item = {Key, Val},Acc) ->
 					 riak_sets:remove_from_set(Key, Val),
 					 Acc
 				 end, true, End),
-		       
-		       
                        Result == ok
                    end)
 	    end).
 
 
 command(_V) ->
-    Backend = riak_sets,
+
     oneof([
-           {call, Backend, add_to_set,      [ set_key(), set_value()]},
-           {call, Backend, remove_from_set, [ set_key(), set_value()]},
-           {call, Backend, item_in_set,     [ set_key(), set_value()]},
-	   {call, ?MODULE, partial_write,   [ set_key(), set_value(), integer(1,2)]}
+           {call, riak_sets, add_to_set,      [ set_key(), set_value()]},
+           {call, riak_sets, remove_from_set, [ set_key(), set_value()]},
+           {call, riak_sets, item_in_set,     [ set_key(), set_value()]},
+	   {call, ?MODULE,   partial_write,   [ set_key(), set_value(), integer(1,2)]}
 	  ]).
  
 

@@ -41,3 +41,13 @@ con(N) ->
     clean(),
     proper:quickcheck(concurrency_eqc:prop_conc(), [N]),
     true.
+
+merge(N) ->
+    true = proper:quickcheck(riak_sets_tests:prop_merge_trees_empty_merge(),[N]),
+    true = proper:quickcheck(riak_sets_tests:prop_merge_trees_self_merge(),[N]),
+    true = proper:quickcheck(riak_sets_tests:prop_merge_trees_is_communicative(),[N]),
+    ok.
+
+
+
+    

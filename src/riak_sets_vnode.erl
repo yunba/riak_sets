@@ -1,7 +1,10 @@
 -module(riak_sets_vnode).
 -behaviour(riak_core_vnode).
 -include("riak_sets.hrl").
+-include_lib("riak_core/include/riak_core_vnode.hrl").
 -compile({parse_transform,seqbind}).
+
+
 -export([start_vnode/1,
          init/1,
          terminate/2,
@@ -16,7 +19,7 @@
          encode_handoff_item/2,
          handle_coverage/4,
          handle_exit/3]).
-
+-export([merge_trees/2]).
 -ignore_xref([
              start_vnode/1
              ]).
@@ -36,28 +39,17 @@ init([Partition]) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Sample command: respond to a ping
 handle_command(ping, _Sender, State) ->
-    lager:info("PING ~p  ~p", [_Sender, State]),
+    lager:debug("PING ~p  ~p", [_Sender, State]),
     {reply, {pong, State#state.partition}, State};
 
 handle_command({ReqId, Cmd }, _Sender, State) when is_integer(ReqId) ->
-    lager:info("Handle FSM command ~p", [{ReqId, Cmd}]),
+    lager:debug("Handle FSM command ~p", [{ReqId, Cmd}]),
     {Status, Resp, NewState} = handle_command(Cmd, _Sender, State),
     {Status, {ReqId, Resp}, NewState};
 	
 handle_command({add_to_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
     lager:debug("add_to_set(~p,~p)", [SetKey, Item]), 
-    case gb_trees:is_defined(SetKey, Tree) of
-        false ->            
-            Set@                         = gb_sets:empty(),
-            Set@                         = gb_sets:add(Item, Set@),
-            Tree@                        = gb_trees:insert(SetKey, Set@, Tree),
-            {reply, ok, State#state{data = Tree@}};
-        true ->
-            Set@                         = gb_trees:get(SetKey,  Tree),
-            Set@                         = gb_sets:add(Item, Set@),
-            Tree@                        = gb_trees:update(SetKey, Set@, Tree),
-            {reply, ok, State#state{data = Tree@}}
-    end;
+    add_to_set_tree(SetKey, Item, State, Tree);
 
 handle_command({item_in_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
     lager:debug("item_in_set(~p,~p)", [SetKey, Item]),
@@ -100,10 +92,13 @@ handle_command(Message, _Sender, State) ->
     {reply,false, State}.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-handle_handoff_command(_Message, _Sender, State) ->
-    lager:notice("handle_handoff_command/3"),
+handle_handoff_command(?FOLD_REQ{foldfun=_VisitFun, acc0=_Acc0}, _Sender, State  = #state{data = Tree}) ->
+
+    {reply, Tree, State};
+handle_handoff_command(Message, _Sender, State) ->
+    ?PRINT({unhandled_handoff_command, Message}),
     {noreply, State}.
+
 
 handoff_starting(_TargetNode, State) ->
     lager:notice("handle_starting(~p,~p)", [_TargetNode, State]),
@@ -115,9 +110,9 @@ handoff_cancelled(State) ->
 handoff_finished(_TargetNode, State) ->
     {ok, State}.
 
-handle_handoff_data(Data, State =  #state{data = _Tree}) ->
-    {_Meta, _Blob} = binary_to_term(Data),
-    {reply, ok, State}.
+handle_handoff_data(Data, State =  #state{data = OldTree}) ->
+    NewTree = binary_to_term(Data),
+    {reply, ok, State#state{data= merge_trees(OldTree, NewTree)}}.
 
 
 encode_handoff_item(_ObjectName, ObjectValue) ->
@@ -143,3 +138,42 @@ handle_exit(_Pid, _Reason, State) ->
 
 terminate(_Reason, _State) ->
     ok.
+
+%% Private API
+
+%% get_all_objects(_State  = #state{data = Tree}) ->
+%%     gb_trees:keys(Tree).
+
+
+add_to_set_tree(SetKey, Item, State, Tree) ->
+    case gb_trees:is_defined(SetKey, Tree) of
+        false ->            
+            Set@                         = gb_sets:empty(),
+            Set@                         = gb_sets:add(Item, Set@),
+            Tree@                        = gb_trees:insert(SetKey, Set@, Tree),
+            {reply, ok, State#state{data = Tree@}};
+        true ->
+            Set@                         = gb_trees:get(SetKey,  Tree),
+            Set@                         = gb_sets:add(Item, Set@),
+            Tree@                        = gb_trees:update(SetKey, Set@, Tree),
+            {reply, ok, State#state{data = Tree@}}
+    end.
+
+
+merge_trees(Tree1, Tree2) ->
+    lists:foldr(fun({SetKey, Value}, Tr) ->
+                        union_to_set_tree(SetKey, Value, Tr)
+                end, Tree1, gb_trees:to_list(Tree2)).
+
+    
+
+union_to_set_tree(SetKey, NewSet, Tree) ->
+    case gb_trees:is_defined(SetKey, Tree) of
+        false ->
+            gb_trees:insert(SetKey, NewSet, Tree);
+        true ->
+            Set@                         = gb_trees:get(SetKey,  Tree),
+            Set@                         = gb_sets:union(NewSet, Set@),
+            Tree@                        = gb_trees:update(SetKey, Set@, Tree),
+            Tree
+    end.
