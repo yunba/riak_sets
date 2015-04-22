@@ -33,7 +33,7 @@ xref: all
 
 eunit: fcompile
 	@if [ -n "$(REBAR)" ] ; then \
-	ERL_LIBS=~/eqcmini $(REBAR) eunit skip_deps=true ; \
+	ERL_FLAGS="-name eunit@127.0.0.1" $(REBAR) eunit skip_deps=true ; \
 	fi
 fcompile: 
 	$(REBAR) compile skip_deps=true

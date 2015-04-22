@@ -34,10 +34,21 @@ set_guid() ->
 
 print_cmds([],_) ->
     ok;
-print_cmds([Cmd|Rest],N) ->
-    io:format(user,"~p  Command: ~p~n",[N,Cmd]),
+print_cmds([_Cmd = {set,{var,_},{call, Module, Function, Arguments}}|Rest],N) ->
+    io:format(user, "~p: ~p:~p(~s).~n",[N, Module,Function, iolist_to_binary(join(Arguments, ", "))]),
+                                                %io:format(user,"~p  Command: ~p~n",[N,Cmd]),
     print_cmds(Rest,N+1).
 
+join([],_) -> "";
+join([X], _) ->
+    ["\"",X, "\""];
+join([X|Rest], Conj) when is_list(X) ->
+    ["\"", X,"\"", Conj, join(Rest, Conj)];
+join([X|Rest], Conj) when is_binary(X) ->
+    ["<<\"", X,"\">>", Conj, join(Rest, Conj)];
+join([X|Rest], Conj) when is_integer(X) ->
+    [ X, Conj, join(Rest, Conj)].
+    
 evil_real() ->
     frequency([
                {20, real()},

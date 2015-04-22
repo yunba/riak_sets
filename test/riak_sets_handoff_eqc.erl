@@ -93,3 +93,12 @@ all_present(Set) ->
 		      false
 	      end, true, Set).
    
+
+
+run_test_() ->
+    application:ensure_all_started(lager),
+
+    ?assertEqual( net_adm:ping('riak_sets4@127.0.0.1'),pong),
+    ?debugFmt("Nodes ~p", [nodes()]),
+    {timeout, 3600,
+     ?_assertEqual([],proper:module(?MODULE,[100,{to_file, user}]))}.

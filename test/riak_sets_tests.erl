@@ -15,31 +15,6 @@
 -include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
-value() -> quickcheck_util:set_guid().
-
-    %% frequency([{100, oneof([int(),binary(), char(), uuid(), vector(10, char())])},
-    %%            {10, evil_real()},
-    %%            {50, set_guid()}]).
-
-
-
-    
-set_value() -> value().
-set_key()   -> value().
-prop_save_and_exists() ->
-    ?FORALL({Key, Value},
-            {set_key(), set_value()},
-            begin
-                Backend = riak_sets,
-                Backend:start_link(),
-               
-                gen_server:cast(riak_sets,'reset'),
-                false =  Backend:item_in_set( Key, Value),
-                Backend:add_to_set( Key, Value),
-                true  =  Backend:item_in_set( Key, Value),
-                true
-
-            end).
 
 tvalue() ->
     weighted_union([{40,quickcheck_util:uuid()},
@@ -60,42 +35,82 @@ set_tree() ->
              gb_trees:from_orddict(Sorted)
          end).
 prop_merge_trees_is_communicative() ->
-    ?FORALL({TREE1,TREE2},
+    ?FORALL({Tree1,Tree2},
             {set_tree(), set_tree()},
             ?WHENFAIL(
                    begin
-                       ?debugFmt("Tree 1~n~p", [TREE1]),
-                       ?debugFmt("Tree 2~n~p", [TREE2]),
+                       ?debugFmt("Tree 1~n~p", [Tree1]),
+                       ?debugFmt("Tree 2~n~p", [Tree2]),
                        false
                    end,
                begin
-                   R1 = riak_sets_vnode:merge_trees(TREE2, TREE1),
-                   R2 = riak_sets_vnode:merge_trees(TREE1, TREE2),
+                   R1 = riak_sets_vnode:merge_trees(Tree2, Tree1),
+                   R2 = riak_sets_vnode:merge_trees(Tree1, Tree2),
                    assertTreesEqual(R1,R2)
                end
               )).
 
 
+
 prop_merge_trees_self_merge() ->
-    ?FORALL(TREE,
+    ?FORALL(Tree,
             set_tree(),
             ?WHENFAIL(
                begin
-                   ?debugFmt("Tree ~n~p~n",[TREE])
+                   ?debugFmt("Tree ~n~p~n",[Tree])
                end,
                begin
-                   assertTreesEqual(TREE, riak_sets_vnode:merge_trees(TREE, TREE))
+                   assertTreesEqual(Tree, riak_sets_vnode:merge_trees(Tree, Tree))
                end
            )).
 
 prop_merge_trees_empty_merge() ->
-    ?FORALL(TREE,
+    ?FORALL(Tree,
             set_tree(),
             ?WHENFAIL(
-               ?debugFmt("Tree ~n~p~n",[TREE]),
-               assertTreesEqual(TREE, riak_sets_vnode:merge_trees(TREE, gb_trees:empty()))
+               ?debugFmt("Tree ~n~p~n",[Tree]),
+               assertTreesEqual(Tree, riak_sets_vnode:merge_trees(Tree, gb_trees:empty()))
                
            )).
+
+prop_set_size_timeout() ->
+    ?FORALL(Tree,
+            set_tree(),
+            ?FORALL(Key,
+                    oneof([tvalue(),
+                           ?LET(Keys, gb_trees:keys(Tree),
+                                oneof(Keys))]
+                         ),
+                    begin
+                        {Time, {reply, Size, _}} = timer:tc(riak_sets_vnode, set_size, [Key, {}, Tree]),
+            
+                        ?assert(is_integer(Size)),
+                        ?WHENFAIL(
+                           begin
+                               ?debugFmt("Size ~p",[Size])
+                           end,
+                           Time < 55)
+                    end)).
+
+prop_add_to_set_timeout() ->
+    ?FORALL({Key, Value, State, Tree},
+            {tvalue(), tvalue(), {state, {},{}}, set_tree()},
+            begin
+                {Time,_} = timer:tc(riak_sets_vnode, add_to_set_tree, [Key, Value, State, Tree]),
+            
+                Time < 30
+            end).
+   
+
+prop_get_item_from_set_timeout() ->
+    ?FORALL({Key, Value, State, Tree},
+            {tvalue(), tvalue(), {state, {},{}}, set_tree()},
+            begin
+                {Time,_} = timer:tc(riak_sets_vnode, get_item_from_set, [Key, Value, State, Tree]),
+                Time < 30
+            end).
+   
+
 
 assertTreesEqual([_Tree1]) ->
     true;
@@ -115,6 +130,8 @@ assertTreesEqual(Tree1, Tree2) ->
               end, Keys1).
 
 
+
+
 merge_test() ->
     S = {1,
          {"da39a3ee-5e6b-5b0d-b255-18901037926d",
@@ -129,8 +146,6 @@ merge_test() ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-run_te3st_() ->
-    application:ensure_all_started(lager),
-    code:add_pathz("../apps/setref/ebin"),
+run_test_() ->
     {timeout, 3600,
      ?_assertEqual([],proper:module(?MODULE,[100,{to_file, user}]))}.

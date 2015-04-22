@@ -5,7 +5,7 @@
 
 setup() ->
     code:add_pathsa(["../../ebin"]),
-    code:add_pathsz(["../../deps/sync/ebin", "../../deps/proper/ebin", "../../deps/hackney/ebin", "../../.eunit", "../../deps/uuid/ebin", "../../deps/seqbind/ebin"]),
+    code:add_pathsz(["../../deps/sync/ebin", "../../deps/proper/ebin", "../../deps/hackney/ebin", "../../.eunit", "../../deps/uuid/ebin", "../../deps/seqbind/ebin", "../../deps/recon/ebin"]),
     sync:go(),
     lager:set_loglevel(lager_console_backend, notice),
     ok.

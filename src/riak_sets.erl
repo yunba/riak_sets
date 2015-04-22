@@ -21,14 +21,21 @@ ping() ->
     riak_core_vnode_master:sync_spawn_command(IndexNode, ping, riak_sets_vnode_master).
 
 
+
+get_tree(Key) ->
+    op({get_tree, Key}, {<<"set">>, Key}).
+    
 -compile(export_all).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+make_key(Set) ->
+    {'set',term_to_binary(Set)}.
+
 item_in_set(Set, Item) ->
     lager:debug("item_in_set(~p,~p)", [Set, Item]),
-    case op({item_in_set, Set, Item}, {<<"set">>,term_to_binary(Set)}) of
+    case op({item_in_set, Set, Item}, make_key(Set)) of
         {ok, [Result, Result, Result]} ->
             Result;
         {ok, _Results} ->
@@ -40,24 +47,25 @@ item_in_set(Set, Item) ->
 
 add_to_set( Set, Item) ->
     lager:debug("add_to_set(~p,~p)", [Set, Item]),
-    op({add_to_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
+    op({add_to_set, Set, Item}, make_key(Set)).
 
 
 
 remove_from_set(Set,Item) ->
     lager:debug("remove_from_set(~p,~p)", [Set, Item]),
-    op({remove_from_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
+    op({remove_from_set, Set, Item}, make_key(Set)).
+    
 
 remove_from_set(Set) ->
     lager:debug("remove_from_set(~p)", [Set]),
-    op({remove_from_set, Set}, {<<"set">>,term_to_binary(Set)}).
+    op({remove_from_set, Set}, make_key(Set)).
 
     
 size(Set) ->
-    lager:debug("remove_from_set(~p)", [Set]),
-    case op(1,1,{size, Set}, {<<"set">>,term_to_binary(Set)}) of
-        {ok, [S]} ->
-            S;
+    lager:debug("size(~p)", [Set]),
+    case op(3,3,{size, Set}, make_key(Set)) of
+        {ok, L } when is_list(L) ->
+            lists:max(L);
         X ->
             {error,X}
     end.

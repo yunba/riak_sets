@@ -19,7 +19,8 @@
          encode_handoff_item/2,
          handle_coverage/4,
          handle_exit/3]).
--export([merge_trees/2]).
+-compile(export_all).
+-export([merge_trees/2, set_size/3]).
 -ignore_xref([
              start_vnode/1
              ]).
@@ -43,7 +44,6 @@ handle_command(ping, _Sender, State) ->
     {reply, {pong, State#state.partition}, State};
 
 handle_command({ReqId, Cmd }, _Sender, State) when is_integer(ReqId) ->
-    lager:debug("Handle FSM command ~p", [{ReqId, Cmd}]),
     {Status, Resp, NewState} = handle_command(Cmd, _Sender, State),
     {Status, {ReqId, Resp}, NewState};
 	
@@ -53,13 +53,7 @@ handle_command({add_to_set, SetKey, Item}, _Sender, State = #state{data = Tree})
 
 handle_command({item_in_set, SetKey, Item}, _Sender, State = #state{data = Tree}) ->
     lager:debug("item_in_set(~p,~p)", [SetKey, Item]),
-    case gb_trees:lookup(SetKey, Tree) of
-        none ->
-            {reply, false, State};
-        {value, SetData } ->
-            lager:debug("item_in_set SetData: ~p", [SetData]),
-            {reply, gb_sets:is_member(Item, SetData), State}
-    end;
+    get_item_from_set(SetKey, Item, State, Tree);
 
 handle_command({remove_from_set, SetKey}, _Sender, State =  #state{data = Tree}) ->
     case gb_trees:is_defined(SetKey, Tree) of
@@ -78,18 +72,17 @@ handle_command({remove_from_set, SetKey, Item}, _Sender, State =  #state{data = 
         none ->
             {reply, ok, State}
     end;
-handle_command({size, SetKey},_Sender, State =  #state{data = Tree}) ->
-    case gb_trees:lookup(SetKey, Tree) of
-        {value, Set} ->
-            {reply, gb_sets:size(Set), State};
-        none ->
-            {reply, 0, State}
-    end;
 
+handle_command({size, SetKey},_Sender, State =  #state{data = Tree}) ->
+    set_size(SetKey, State, Tree);
+
+handle_command({get_tree, _}, _,  State =  #state{data = Tree}) ->
+    {reply, Tree, State};
 
 handle_command(Message, _Sender, State) ->
     lager:warning("Unknown Command ~p",[ Message]),
     {reply,false, State}.
+
 
 
 handle_handoff_command(?FOLD_REQ{foldfun=_VisitFun, acc0=_Acc0}, _Sender, State  = #state{data = Tree}) ->
@@ -144,16 +137,18 @@ terminate(_Reason, _State) ->
 %% get_all_objects(_State  = #state{data = Tree}) ->
 %%     gb_trees:keys(Tree).
 
-
+-spec(add_to_set_tree(term(), term(), #state{}, term()) -> {reply, ok, #state{}}).
 add_to_set_tree(SetKey, Item, State, Tree) ->
     case gb_trees:is_defined(SetKey, Tree) of
-        false ->            
+        false ->
+            lager:debug("No Set for key ~p", [SetKey]),
             Set@                         = gb_sets:empty(),
             Set@                         = gb_sets:add(Item, Set@),
             Tree@                        = gb_trees:insert(SetKey, Set@, Tree),
             {reply, ok, State#state{data = Tree@}};
         true ->
             Set@                         = gb_trees:get(SetKey,  Tree),
+            lager:debug("set members ~p", [gb_sets:to_list(Set@)]),
             Set@                         = gb_sets:add(Item, Set@),
             Tree@                        = gb_trees:update(SetKey, Set@, Tree),
             {reply, ok, State#state{data = Tree@}}
@@ -176,4 +171,22 @@ union_to_set_tree(SetKey, NewSet, Tree) ->
             Set@                         = gb_sets:union(NewSet, Set@),
             Tree@                        = gb_trees:update(SetKey, Set@, Tree),
             Tree
+    end.
+
+get_item_from_set(SetKey, Item, State, Tree) ->
+    case gb_trees:lookup(SetKey, Tree) of
+        none ->
+            {reply, false, State};
+        {value, SetData } ->
+            lager:debug("item_in_set SetData: ~p", [SetData]),
+            {reply, gb_sets:is_member(Item, SetData), State}
+    end.
+
+set_size(SetKey, State, Tree) ->
+    case gb_trees:lookup(SetKey, Tree) of
+        {value, Set} ->
+            {reply, gb_sets:size(Set), State};
+        none ->
+            lager:debug("Set ~p Not Found" , [SetKey]),
+            {reply, 0, State}
     end.

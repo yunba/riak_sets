@@ -63,6 +63,7 @@ init([ReqID, From, Op, Key, N, W]) ->
 %% @doc Prepare the write by calculating the _preference list_.
 prepare(timeout, SD0=#state{n=N, key=Key}) ->
     DocIdx	= riak_core_util:chash_key(Key),
+    lager:debug("Preflist Size ~p", [N]),
     Preflist	= riak_core_apl:get_apl(DocIdx, N, riak_sets),
     SD		= SD0#state{preflist=Preflist},
     {next_state, execute, SD, 0}.
@@ -78,11 +79,12 @@ execute(timeout, SD0=#state{req_id=ReqID, op=Op, preflist=Preflist}) ->
 
 %% @doc Wait for W write reqs to respond.
 
-waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum}) ->
+waiting({ReqID, Resp}, SD0=#state{from=From, num_w=NumW0, w=W, accum=Accum, preflist = _PL}) ->
     NumW	= NumW0 + 1,
     NewAccum	= [Resp|Accum],
     SD		= SD0#state{num_w=NumW, accum=NewAccum},
-    lager:debug("Waiting ~p ~p", [NumW, W]),
+    lager:debug("Waiting ~p ~p ~p", [NumW, W, length(_PL)]),
+  %  lager:debug("state ~p", [lager:pr(SD0, ?MODULE)]),
     if
         NumW =:= W ->
             From ! {ReqID, NewAccum},

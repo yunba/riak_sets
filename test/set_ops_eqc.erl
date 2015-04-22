@@ -20,10 +20,17 @@ value() -> weighted_union([
                            {1, quickcheck_util:evil_real()}
                           ]).
 
+partial_write(Set, Item) ->    
+    DocIdx               = riak_core_util:chash_key({<<"set">>, term_to_binary(Set)}),
+    PrefList             = riak_core_apl:get_primary_apl(DocIdx, 1, riak_sets),
+    [{IndexNode, _Type}] = PrefList,
+    riak_core_vnode_master:sync_spawn_command(IndexNode, {add_to_set, Set,Item}, riak_sets_vnode_master).
+
+
 
 command(_V) ->
     oneof([
-	   {call, ?MODULE,   partial_write,   [ quickcheck_util:set_guid(), quickcheck_util:set_guid(), integer(1,3)]},
+	   %{call, ?MODULE,   partial_write,   [ quickcheck_util:set_guid(), quickcheck_util:set_guid()]},
            {call, riak_sets, add_to_set,      [ set_key(), set_value()]},
            {call, riak_sets, remove_from_set, [ set_key(), set_value()]},
            {call, riak_sets, item_in_set,     [ set_key(), set_value()]},
@@ -38,20 +45,23 @@ prop_run_commands() ->
     ?FORALL(Cmds,
             non_empty(commands(?MODULE)),
 	    begin
-		{_Start,End,Result} = run_commands(?MODULE,Cmds),
+                
+
 		?WHENFAIL(
 		   begin
-		       io:format("~n~nEnd Value ~p~n",[Result]),
 		       quickcheck_util:print_cmds(Cmds,0),
 		       true
 		   end,
-		   begin
-		       sets:fold(fun(_Item = {Key, Val},Acc) ->
-					 riak_sets:remove_from_set(Key, Val),
-					 Acc
-				 end, true, End),
-                       Result == ok
-                   end)
+
+                   ?TIMEOUT(5000,            
+                            begin
+                                {_Start,End,Result} = run_commands(?MODULE,Cmds),
+                                sets:fold(fun(_Item = {Key, Val},Acc) ->
+                                                  riak_sets:remove_from_set(Key, Val),
+                                                  Acc
+                                          end, true, End),
+                                Result == ok
+                            end))
 	    end).
 
 
@@ -65,13 +75,16 @@ precondition(_,_) ->
     true.
 next_state(S,_V, {call, _, add_to_set, [ Key, Value]}) ->
     sets:add_element({Key, Value}, S);
-next_state(S,_V, {call, _, partial_write, [ Key, Value,_]}) ->
+next_state(S,_V, {call, _, partial_write, [ Key, Value]}) ->
     sets:add_element({Key, Value}, S);
 next_state(S,_V, _Cmd = {call, _, remove_from_set, [ Key, Value]}) ->
     sets:del_element({Key, Value}, S);
 next_state(S,_V, _Cmd) ->
     S.
 
+postcondition(_, Cmd, {error, timeout}) ->
+    lager:error("TIMEOUT! ~p", [Cmd]),
+    false;
 postcondition(S,{call,_,item_in_set, [Key, Value]},Result) ->
     Result == sets:is_element({Key,Value},S);
 postcondition(S, {call, _, size, [Key]}, Result) ->
@@ -79,7 +92,7 @@ postcondition(S, {call, _, size, [Key]}, Result) ->
                                Acc + 1;
                           (_, Acc) ->Acc
                        end, 0, S),
-
+    ?assertEqual(MCount, Result),
     MCount == Result;
         
     
@@ -87,12 +100,24 @@ postcondition(_S,_Cmd,_Result) ->
     true.
 
 
-partial_write(Set, Item, W) ->    
-    lager:debug("partial_write(~p,~p)", [Set, Item]),
-    riak_sets:op(2, W, {add_to_set, Set, Item}, {<<"set">>,term_to_binary(Set)}).
-
-
 clean() ->
     Sets = quickcheck_util:guids(),
     [riak_sets:remove_from_set(Key) || Key <- Sets],
     ok.
+
+
+run_test_() ->
+    application:ensure_all_started(lager),
+
+    ?assertEqual( net_adm:ping('riak_sets4@127.0.0.1'),pong),
+
+    {timeout, 3600,
+     ?_assertEqual([],
+                   begin
+
+                       [RNode|_] = nodes(),
+                       ?debugFmt("Starting proper tests on ~p", [RNode]),
+                       rpc:call(RNode, proper, module, [?MODULE,[100,{to_file, user}]])
+                   end
+                  )
+    }.
