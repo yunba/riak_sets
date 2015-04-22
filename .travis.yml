@@ -7,7 +7,8 @@ sudo: required
 script:
   - make rel
   - ./rel/riak_sets start
-#  - rebar eunit
+  - sleep 5
+  - rebar eunit
   - |
      if [ $TRAVIS_OTP_RELEASE == 17.4 ]
         then
