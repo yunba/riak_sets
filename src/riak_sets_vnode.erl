@@ -27,11 +27,12 @@
 
 -record(state, {partition, 
                 data :: settree()}).
-
+-type state() :: #state{}.
 %% API
 start_vnode(I) ->
     riak_core_vnode_master:get_vnode_pid(I, ?MODULE).
 
+-spec(init([term()]) -> {ok, state()}).
 init([Partition]) ->
     {ok, #state { partition = Partition,
                   data      = gb_trees:empty()
@@ -61,7 +62,7 @@ handle_command({remove_from_set, SetKey}, _Sender, State =  #state{data = Tree})
             {reply, ok, State#state{data = gb_trees:delete(SetKey, Tree)}};
         false ->
             {reply, ok, State}
-        end;
+    end;
 
 handle_command({remove_from_set, SetKey, Item}, _Sender, State =  #state{data = Tree}) ->
     case gb_trees:lookup(SetKey, Tree) of
@@ -81,30 +82,44 @@ handle_command({get_tree, _}, _,  State =  #state{data = Tree}) ->
 
 handle_command(Message, _Sender, State) ->
     lager:warning("Unknown Command ~p",[ Message]),
+   
     {reply,false, State}.
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+handle_handoff_command(?FOLD_REQ{foldfun=VisitFun, acc0=Acc0}, _Sender, State  = #state{data = Tree}) ->
+    lager:info("handle_handoff_command Tree ~p~n",[Tree]),
+    Keys = gb_trees:keys(Tree),
+    Do   = fun(Key, AccIn) ->
+                   AccOut = VisitFun(set, gb_trees:get(Key, Tree), AccIn),
 
-handle_handoff_command(?FOLD_REQ{foldfun=_VisitFun, acc0=_Acc0}, _Sender, State  = #state{data = Tree}) ->
+                   AccOut
+           end,
+    Final = lists:foldl(Do, Acc0, Keys),
+    {reply, Final, State};
 
-    {reply, Tree, State};
 handle_handoff_command(Message, _Sender, State) ->
-    ?PRINT({unhandled_handoff_command, Message}),
+    lager:error("Unkown handoff error ~p",[Message]),
     {noreply, State}.
 
 
+
 handoff_starting(_TargetNode, State) ->
-    lager:notice("handle_starting(~p,~p)", [_TargetNode, State]),
+    lager:debug("handle_starting(~p,~p)", [_TargetNode, State]),
     {true, State}.
+
 
 handoff_cancelled(State) ->
     {ok, State}.
 
+
 handoff_finished(_TargetNode, State) ->
     {ok, State}.
 
+
 handle_handoff_data(Data, State =  #state{data = OldTree}) ->
     NewTree = binary_to_term(Data),
+    lager:notice("handle_handoff_data New Data ~p~n",[NewTree]),
     {reply, ok, State#state{data= merge_trees(OldTree, NewTree)}}.
 
 
@@ -112,16 +127,19 @@ encode_handoff_item(_ObjectName, ObjectValue) ->
     term_to_binary(ObjectValue).
 
 
+-spec(is_empty(state()) -> {boolean(), state()}).
 is_empty(State =  #state{data = Tree}) ->
     case gb_trees:size(Tree) of
 	0 ->
 	    {true, State};
 	_Size ->
-	    false		
+	    {false , State}
     end.
 
 delete(State) ->
     {ok, State}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 handle_coverage(_Req, _KeySpaces, _Sender, State) ->
     {stop, not_implemented, State}.
