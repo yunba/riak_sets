@@ -1,0 +1,17 @@
+%% -*- erlang -*-
+{application, riak_sets,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  riak_core,
+		  riak_sets_api,
+                  proper,
+                  hackney
+                 ]},
+  {mod, { riak_sets_app, []}},
+  {env, []}
+ ]}.

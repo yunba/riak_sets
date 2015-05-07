@@ -5,10 +5,11 @@ notifications:
 sudo: required
 
 script:
-  - rebar get-deps
-  - rebar compile
-  - rebar eunit
-  - rebar xref
+  - make rel
+  - ./rel/riak_sets/bin/riak_sets start
+  - sleep 5
+  - ./rel/riak_sets/bin/riak_sets-admin ringready
+  - make eunit
   - |
      if [ $TRAVIS_OTP_RELEASE == 17.4 ]
         then
@@ -16,7 +17,6 @@ script:
         else
          true
      fi
-
 
 
 otp_release:

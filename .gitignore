@@ -1,0 +1,9 @@
+*.beam
+.eunit
+deps/*
+ebin/*
+rel/riak_core
+dev
+apps/riak_core/src/*
+*~
+
